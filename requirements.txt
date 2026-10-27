@@ -5,7 +5,7 @@ python-dotenv==1.2.4
 # ---------- RAG（向量化 + 向量库） ----------
 fastembed==0.8.1
 chromadb==1.5.9
-onnxruntime==1.19.2          # 注意：必须锁此版本（1.30.x 在 Windows 上会崩溃）
+onnxruntime==1.19.2          # 锁死版本：1.30.x 在 Windows 上会崩
 
 # ---------- 数据管线（PDF → 文字） ----------
 pypdf==6.19.0

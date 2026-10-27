@@ -1,7 +1,6 @@
-"""向量库连接：加载向量化模型 + 连接 Chroma 数据库
+"""向量库连接：加载向量化模型 + 打开 Chroma 集合
 
-被 tools 层引用（import 本模块时会自动完成加载）
-注意：所有命令都要在【项目根目录】运行，不要单独运行本文件
+import 本模块就等于完成加载，所以所有命令必须在项目根目录执行（路径是相对的）。
 """
 from fastembed import TextEmbedding
 import chromadb

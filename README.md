@@ -1,111 +1,118 @@
-# Traffic Rules Agent
+# traffic-agent
 
-> An LLM agent that answers questions **strictly grounded in Chinese traffic engineering codes** — it searches the codes itself and always cites its sources.
+> 交通规范智能问答 Agent —— 一个会"自己查规范"的 RAG Agent
 
-[中文版](README.zh-CN.md)
+基于向量检索（ChromaDB）+ 大模型（DeepSeek）的交通规范问答系统。
+给它一个规范问题，它会**自主检索相关条文**，并**带来源**作答。
 
-## What it does
+## 能做什么
 
-- **Ask the codes**: "How is the highway right-of-way (公路用地范围) defined?" → the agent retrieves the relevant clauses and answers with citations.
-- **Compare two codes**: "What's the difference between urban roads and highways regarding design speed?" → side-by-side clause comparison (GB 55011 vs JTG B01).
-- **Unit conversion**: numeric values are converted by a deterministic tool (e.g., 5.00 m → 500 cm), never by mental math.
-- **No hallucination**: if the codes don't cover the question, it explicitly says so instead of making something up.
+- **查条文**：问"公路用地范围怎么规定"，自动检索规范条文并作答
+- **规范对比**：问"城市道路和公路的设计速度有什么不同"，对比两份规范
+- **单位换算**：规范里的数值交给工具算（如 5.00 m → 500 cm），不靠模型心算
+- **不编造**：条文里没有答案时，明确回答"没有找到相关规定"（防幻觉）
 
-## Demo
+## 效果演示
 
 ![demo](docs/assets/demo.gif)
 
-## Architecture
+## 架构
 
 ```
-                ┌──────────────────┐
-   You ────────▶│  app.py          │  Gradio chat UI
-                │  (or main.py)    │  streaming + tool logs + citations
-                └────────┬─────────┘
-                         │
-                ┌────────▼─────────┐        ┌───────────────┐
-                │  agent/agent.py  │◀──────▶│  DeepSeek API │
-                │  ReAct loop      │        └───────────────┘
-                └────────┬─────────┘
-                         │ tool calls
-        ┌────────────────┼─────────────────┐
-        ▼                ▼                 ▼
-  search_rules    compare_rules     convert_unit        (tools/)
-        │                │
-        └────────┬───────┘
-                 ▼
-       Chroma vector DB  ──  651 chunks  ←  bge-small-zh-v1.5 (local)
+                   ┌──────────────────┐
+   用户 ──────────▶│  app.py          │  Gradio 网页界面
+                   │  （或 main.py）  │  流式输出 + 工具日志 + 来源
+                   └────────┬─────────┘
+                            │
+                   ┌────────▼─────────┐       ┌───────────────┐
+                   │  agent/agent.py  │◀─────▶│  DeepSeek API │
+                   │  ReAct 主循环    │       └───────────────┘
+                   └────────┬─────────┘
+                            │ tool_calls
+        ┌───────────────────┼───────────────────┐
+        ▼                   ▼                   ▼
+  search_rules       compare_rules       convert_unit      (tools/)
+        │                   │
+        └─────────┬─────────┘
+                  ▼
+        Chroma 向量库  ──  651 块  ←  bge-small-zh-v1.5（本地运行）
 ```
 
-**Data pipeline** (`rag/`): scanned PDFs → OCR (`pdf_to_text.py`) → noise cleaning + structure-aware chunking (`split_text.py`) → embeddings + index (`build_index.py`).
+数据管线（`rag/`）：扫描版 PDF → OCR（`pdf_to_text.py`）→ 清噪声 + 结构感知切分（`split_text.py`）→ 向量化入库（`build_index.py`）。
 
-## The evaluation story: retrieval 95% → 100%
+## 评测故事：检索命中率 95% → 100%
 
-RAG quality lives or dies by retrieval, so retrieval was **measured**, not guessed. A 20-question eval set (`docs/eval_set.json`) pairs each question with expected answer keywords; `eval.py` reports how often the top-3 retrieved chunks actually contain the answer (runs fully locally, no API key needed).
+RAG 的成败在检索——所以检索不是"感觉"，是**量出来的**。
+用 20 道"问题 + 关键词"评测集（`docs/eval_set.json`）测"检索出的 top-3 里有没有答案"（`eval.py`，纯本地运行，不花 API 钱）：
 
-| Stage | Retrieval hit rate |
+| 阶段 | 检索命中率 |
 |---|---|
-| Baseline (fixed-size 300-char chunks, 60-char overlap) | **19 / 20 (95%)** |
-| After a diagnostic pass + improving the chunking strategy | **20 / 20 (100%)** |
+| 基线（固定 300 字切块 + 60 字重叠） | **19/20（95%）** |
+| 诊断 + 改进切分策略后 | **20/20（100%）** |
 
-The failing question's answer chunk was *semantically diluted*: its first ~40% was text from the previous section plus OCR watermark fragments (it ranked **184 / 246**). The fix (`rag/split_text.py`):
+失败那道题的根因：含答案的块被**语义稀释**——前 40% 是上一节内容 + OCR 水印碎片（排名 184/246）。
+修法（`rag/split_text.py`）：清噪声 + 在条文/子项边界"干净切"（不带走重叠尾巴）+ 只在长度强制切处保留重叠。
+原来失败的那条现在排名第 1。复现：`python eval.py`
 
-- clean OCR noise (watermark fragments, page numbers),
-- split **cleanly at clause (`3.1.1`) and sub-item (`1 ...`) boundaries** — no overlap tail is carried across structural boundaries,
-- keep overlap **only** where the length cap forces a cut.
+## 项目结构
 
-The previously failing chunk now ranks **#1**. Reproduce with `python eval.py`.
+```
+traffic-agent/
+├── config.py            # 配置（模型、检索参数、提示词）
+├── main.py              # 命令行入口
+├── app.py               # Gradio 网页界面（流式 + 工具日志 + 来源）
+├── eval.py              # 检索评测（20 题 → 命中率）
+├── agent/
+│   └── agent.py         # Agent 核心（工具路由 + ReAct 主循环）
+├── tools/
+│   ├── search_tools.py  #   工具：查条文 / 规范对比
+│   └── unit_tools.py    #   工具：单位换算
+├── rag/
+│   ├── store.py         #   向量库连接
+│   ├── pdf_to_text.py   #   ① PDF → OCR → 文字
+│   ├── split_text.py    #   ② 文字 → 切分（结构感知）
+│   ├── build_index.py   #   ③ 切分 → 向量入库
+│   └── search_test.py   #   ④ 检索测试
+└── docs/                # 规范文本数据（OCR 提取 + 切分 + 评测集）
+```
 
-## Quick start
+## 快速开始
 
 ```bash
 git clone https://github.com/QRT5010/traffic-agent.git
 cd traffic-agent
 
 python -m venv .venv
-source .venv/Scripts/activate        # Windows (Git Bash); macOS/Linux: source .venv/bin/activate
+source .venv/Scripts/activate        # Windows（Git Bash）；macOS/Linux 用 source .venv/bin/activate
 pip install -r requirements.txt
 
-cp .env.example .env                 # then put your DeepSeek API key in .env
+cp .env.example .env                 # 编辑 .env，填入你的 DeepSeek API Key
 
-# Build the vector index (run from the project root; first run downloads ~100 MB embedding model)
-python rag/build_index.py            # chunks.json is included; run rag/split_text.py first to regenerate it
+# 构建向量库（在项目根目录运行；首次会下载约 100MB 向量化模型）
+python rag/build_index.py            # chunks.json 已包含在仓库里；要重新生成先跑 rag/split_text.py
 
-# Reproduce the retrieval evaluation (local only, no API key needed)
+# 复现检索评测（纯本地，不需要 API Key）
 python eval.py
 
-# Launch the web UI → http://127.0.0.1:7860
+# 启动网页界面 → http://127.0.0.1:7860
 python app.py
 ```
 
-> In mainland China, prefix with `HF_ENDPOINT=https://hf-mirror.com` to speed up the embedding model download.
+> 国内网络：在命令前加 `HF_ENDPOINT=https://hf-mirror.com` 可加速模型下载。
 
-## Project layout
+## 数据来源
 
-```
-traffic-agent/
-├── config.py            # all tunable parameters (models, retrieval params, prompt)
-├── main.py              # CLI entry
-├── app.py               # Gradio web UI (streaming + tool logs + citations)
-├── eval.py              # retrieval evaluation (20 questions → hit rate)
-├── agent/agent.py       # ReAct loop + tool routing
-├── tools/               # search_rules / compare_rules / convert_unit
-├── rag/                 # data pipeline: pdf_to_text → split_text → build_index (+ search_test)
-└── docs/                # OCR text, chunk data, eval set (source PDFs excluded)
-```
-
-## Data
-
-| Code | Source |
+| 规范 | 来源 |
 |---|---|
-| 《城市道路交通工程项目规范》GB 55011-2021 | Ministry of Housing and Urban-Rural Development (public) |
-| 《公路工程技术标准》JTG B01-2014 | Ministry of Transport (public) |
+| 《城市道路交通工程项目规范》GB 55011-2021 | 住房和城乡建设部官网公开 |
+| 《公路工程技术标准》JTG B01-2014 | 交通运输部官网公开 |
 
-The original files are **scanned PDFs**; they were converted to text with RapidOCR (150 dpi). The PDFs themselves are not redistributed in this repo — the extracted text lives under `docs/`.
+> 原始文件为**扫描版 PDF**，通过 `rag/pdf_to_text.py`（OCR，150 dpi）转为文字后入库。
+> PDF 原文件不随仓库分发，提取出的文本在 `docs/` 下。
 
-## Tech stack
+## 技术栈
 
-Python 3.11 · DeepSeek API (OpenAI SDK) · ChromaDB · fastembed (`BAAI/bge-small-zh-v1.5`) · RapidOCR · Gradio
+Python 3.11 · DeepSeek API（OpenAI SDK）· ChromaDB · fastembed (bge-small-zh-v1.5) · RapidOCR · Gradio
 
 ## License
 

@@ -4,7 +4,7 @@ from config import SOURCE_A, SOURCE_B, SEARCH_TOP_K, COMPARE_TOP_K
 
 
 def search_rules(query, top_k=SEARCH_TOP_K):
-    """检索规范条文：把问题变向量 → 去库里找最相似的 top_k 块"""
+    """检索规范条文，返回拼好的 top_k 段文本（带来源标记）"""
     q_vec = list(embed_model.embed([query]))[0].tolist()
     result = collection.query(query_embeddings=[q_vec], n_results=top_k)
 
@@ -18,7 +18,7 @@ def search_rules(query, top_k=SEARCH_TOP_K):
 
 
 def compare_rules(topic, top_k=COMPARE_TOP_K):
-    """对比两份规范对同一主题的规定：分别检索后拼成对照文本"""
+    """两份规范分别检索同一主题，拼成对照文本"""
     q_vec = list(embed_model.embed([topic]))[0].tolist()
 
     parts = []
@@ -26,7 +26,7 @@ def compare_rules(topic, top_k=COMPARE_TOP_K):
         result = collection.query(
             query_embeddings=[q_vec],
             n_results=top_k,
-            where={"source": src},          # 关键：只在这份规范里查
+            where={"source": src},          # 只在单份规范内检索
         )
         lines = [f"===== {src} 的相关条文 ====="]
         for d in result["documents"][0]:

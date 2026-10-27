@@ -1,6 +1,5 @@
-"""程序入口：跑 Agent 的测试问题
+"""命令行入口：依次跑 TEST_QUESTIONS 里的问题（需在项目根目录运行）
 
-用法（必须在项目根目录运行）：
     python main.py
 """
 import logging
@@ -13,7 +12,7 @@ logging.basicConfig(
     format="%(asctime)s  %(message)s",
     datefmt="%H:%M:%S",
 )
-# 屏蔽第三方库的请求流水日志（openai 3.x 底层用的是 httpx2，老 httpx 也一起压上）
+# openai 3.x 底层走 httpx2，压掉逐条请求的日志
 logging.getLogger("httpx2").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 

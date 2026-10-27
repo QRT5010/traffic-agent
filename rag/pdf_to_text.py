@@ -1,13 +1,10 @@
-"""
-扫描版 PDF → 文字（OCR 转换工具）
+"""扫描版 PDF 转文字：逐页渲染成图（150 dpi）→ OCR → 拼接输出 txt
 
-用法（页码按人习惯，从 1 开始数）：
-    python pdf_to_text.py <PDF路径> <起始页> <结束页> <输出txt路径>
+用法（页码从 1 开始数）：
+    python rag/pdf_to_text.py <PDF路径> <起始页> <结束页> <输出txt路径>
 
 示例：
-    python pdf_to_text.py "docs/xx规范.pdf" 1 34 "docs/xx规范.txt"
-
-原理：把每页渲染成图片 → OCR 识别图片里的文字 → 拼接成一个 txt 文件
+    python rag/pdf_to_text.py "docs/xx规范.pdf" 1 34 "docs/xx规范.txt"
 """
 import sys
 import time

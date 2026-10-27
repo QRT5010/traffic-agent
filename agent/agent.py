@@ -19,7 +19,7 @@ llm = OpenAI(
     base_url=LLM_BASE_URL,
 )
 
-# ---------- 工具说明书（模型据此决定调哪个工具） ----------
+# 工具 schema：模型据此决定调哪个工具、传什么参数
 tools = [
     {
         "type": "function",
@@ -69,7 +69,7 @@ tools = [
 
 
 def run_agent(question):
-    """ReAct 主循环：模型决定调工具 → 执行 → 结果回填 → 直到给出最终回答"""
+    """ReAct 主循环：模型决定调工具 → 执行 → 结果回填 → 直到它不再调工具"""
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": question},
@@ -118,18 +118,18 @@ def run_agent(question):
 
 
 def run_agent_stream(question):
-    """流式版 Agent（生成器）：yield (类型, 内容)
+    """流式版（生成器）：yield (类型, 内容)
 
     类型：
-      "log"     → 过程日志（工具调用，供界面展示）
-      "answer"  → 回答正文片段（流式吐出）
-      "sources" → 本次引用的来源列表（最后一次 yield）
+      "log"     → 工具调用日志，给界面展示
+      "answer"  → 回答正文片段
+      "sources" → 本次引用的来源，最后 yield 一次
     """
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": question},
     ]
-    sources = []          # 收集来源（去重保序）
+    sources = []          # 收集本次引用的来源，去重保序
     step = 0
 
     while True:
@@ -142,18 +142,16 @@ def run_agent_stream(question):
             stream=True,
         )
 
-        content_parts = []   # 本轮模型说的"话"（预告语 / 最终回答）
-        tool_buf = {}        # index -> {id, name, arguments}：流式工具调的碎片拼图
+        content_parts = []   # 本轮的文字输出
+        tool_buf = {}        # index -> {id, name, arguments}；流式下工具调用是分片到达的
 
         for chunk in stream:
             delta = chunk.choices[0].delta
 
-            # 文字内容：直接流给界面
             if delta.content:
                 content_parts.append(delta.content)
                 yield ("answer", delta.content)
 
-            # 工具调用：按 index 收集碎片，逐片拼接
             if delta.tool_calls:
                 for tc in delta.tool_calls:
                     idx = tc.index
@@ -168,7 +166,7 @@ def run_agent_stream(question):
                             tool_buf[idx]["arguments"] += tc.function.arguments
 
         if tool_buf:
-            # 把"模型本轮说过的话 + 它要调的工具"存回历史
+            # 存回历史：文字和 tool_calls 必须成对出现，否则下一轮请求直接 400
             messages.append({
                 "role": "assistant",
                 "content": "".join(content_parts) or None,
@@ -182,7 +180,7 @@ def run_agent_stream(question):
                 ],
             })
 
-            # 挨个执行工具
+            # 执行工具并回填结果，tool_call_id 必须与请求里的一致
             for t in tool_buf.values():
                 name = t["name"]
                 args = json.loads(t["arguments"])
@@ -199,7 +197,7 @@ def run_agent_stream(question):
                 else:
                     result = f"未知工具：{name}"
 
-                # 从工具返回文本里提取来源（两种工具的输出格式都抓）
+                # 两个工具的输出格式不同，各抓一遍来源
                 found = re.findall(r"【来源：(.+?)】", result)
                 found += re.findall(r"===== (.+?) 的相关条文 =====", result)
                 for s in found:
@@ -212,7 +210,7 @@ def run_agent_stream(question):
                 yield ("log", "（达到步数上限，停止）")
                 break
         else:
-            # 没有工具调用 = 这一轮就是最终回答（已经流完了）
+            # 没有工具调用 = 这一轮就是最终回答，而且已经流完了
             break
 
     yield ("sources", sources)
