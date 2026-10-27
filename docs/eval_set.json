@@ -1,0 +1,22 @@
+[
+  {"id": 1, "source": "GB55011", "question": "城市道路分为哪几个等级？", "keywords": ["快速路", "主干路", "支路"]},
+  {"id": 2, "source": "GB55011", "question": "城市快速路与所有等级道路交叉时应设置什么？", "keywords": ["立体交叉"]},
+  {"id": 3, "source": "GB55011", "question": "城市快速路、主干路的路面回弹模量不应小于多少？", "keywords": ["30MPa"]},
+  {"id": 4, "source": "GB55011", "question": "桥梁主体结构与架空电线之间应满足什么要求？", "keywords": ["安全距离"]},
+  {"id": 5, "source": "GB55011", "question": "隧道通风系统日常运营时需要监测哪些指标？", "keywords": ["一氧化碳", "烟雾"]},
+  {"id": 6, "source": "GB55011", "question": "快速公共汽车交通（BRT）的客运能力指标是多少？", "keywords": ["万人次"]},
+  {"id": 7, "source": "GB55011", "question": "公共交通停靠站的规模应根据什么确定？", "keywords": ["客流"]},
+  {"id": 8, "source": "GB55011", "question": "道路建筑限界应符合哪里的规定？", "keywords": ["建筑限界"]},
+  {"id": 9, "source": "JTG_B01", "question": "公路分为哪几个技术等级？", "keywords": ["五个技术等级"]},
+  {"id": 10, "source": "JTG_B01", "question": "公路用地范围是怎么规定的？", "keywords": ["不小于1m"]},
+  {"id": 11, "source": "JTG_B01", "question": "高速公路的净高要求是多少？", "keywords": ["5.00", "4.50"]},
+  {"id": 12, "source": "JTG_B01", "question": "爬坡车道应设置在什么位置？", "keywords": ["爬坡车道"]},
+  {"id": 13, "source": "JTG_B01", "question": "高速公路车道宽度采用多少米？", "keywords": ["3.75"]},
+  {"id": 14, "source": "JTG_B01", "question": "公路平面交叉的交叉角宜为多少度？", "keywords": ["直角"]},
+  {"id": 15, "source": "JTG_B01", "question": "高速公路与乡村道路相交叉必须设置什么？", "keywords": ["通道", "天桥"]},
+  {"id": 16, "source": "JTG_B01", "question": "汽车荷载分为哪几个等级？", "keywords": ["I级", "Ⅱ级"]},
+  {"id": 17, "source": "JTG_B01", "question": "公路隧道按长度分为哪几类？", "keywords": ["特长隧道", "长隧道"]},
+  {"id": 18, "source": "JTG_B01", "question": "公路服务区应设置哪些设施？", "keywords": ["停车场", "公共厕所"]},
+  {"id": 19, "source": "JTG_B01", "question": "公路服务水平分为几级？", "keywords": ["六级"]},
+  {"id": 20, "source": "JTG_B01", "question": "护栏防护等级应根据什么确定？", "keywords": ["护栏防护等级"]}
+]

@@ -11,3 +11,6 @@ onnxruntime==1.19.2          # 注意：必须锁此版本（1.30.x 在 Windows 
 pypdf==6.19.0
 pymupdf==1.28.2
 rapidocr-onnxruntime==1.4.4
+
+# ---------- Web UI（Gradio 聊天界面） ----------
+gradio==6.29.1

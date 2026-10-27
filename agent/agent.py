@@ -2,6 +2,7 @@
 import os
 import json
 import logging
+import re
 
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -112,5 +113,106 @@ def run_agent(question):
                 logger.warning("达到步数上限，停止")
                 break
         else:
-            print(msg.content)
+            return msg.content
+
+
+
+def run_agent_stream(question):
+    """流式版 Agent（生成器）：yield (类型, 内容)
+
+    类型：
+      "log"     → 过程日志（工具调用，供界面展示）
+      "answer"  → 回答正文片段（流式吐出）
+      "sources" → 本次引用的来源列表（最后一次 yield）
+    """
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": question},
+    ]
+    sources = []          # 收集来源（去重保序）
+    step = 0
+
+    while True:
+        step += 1
+        stream = llm.chat.completions.create(
+            model=LLM_MODEL,
+            messages=messages,
+            tools=tools,
+            temperature=0,
+            stream=True,
+        )
+
+        content_parts = []   # 本轮模型说的"话"（预告语 / 最终回答）
+        tool_buf = {}        # index -> {id, name, arguments}：流式工具调的碎片拼图
+
+        for chunk in stream:
+            delta = chunk.choices[0].delta
+
+            # 文字内容：直接流给界面
+            if delta.content:
+                content_parts.append(delta.content)
+                yield ("answer", delta.content)
+
+            # 工具调用：按 index 收集碎片，逐片拼接
+            if delta.tool_calls:
+                for tc in delta.tool_calls:
+                    idx = tc.index
+                    if idx not in tool_buf:
+                        tool_buf[idx] = {"id": "", "name": "", "arguments": ""}
+                    if tc.id:
+                        tool_buf[idx]["id"] = tc.id
+                    if tc.function:
+                        if tc.function.name:
+                            tool_buf[idx]["name"] = tc.function.name
+                        if tc.function.arguments:
+                            tool_buf[idx]["arguments"] += tc.function.arguments
+
+        if tool_buf:
+            # 把"模型本轮说过的话 + 它要调的工具"存回历史
+            messages.append({
+                "role": "assistant",
+                "content": "".join(content_parts) or None,
+                "tool_calls": [
+                    {
+                        "id": t["id"],
+                        "type": "function",
+                        "function": {"name": t["name"], "arguments": t["arguments"]},
+                    }
+                    for t in tool_buf.values()
+                ],
+            })
+
+            # 挨个执行工具
+            for t in tool_buf.values():
+                name = t["name"]
+                args = json.loads(t["arguments"])
+
+                if name == "search_rules":
+                    yield ("log", f"检索：{args.get('query')}")
+                    result = search_rules(args["query"])
+                elif name == "compare_rules":
+                    yield ("log", f"对比：{args.get('topic')}")
+                    result = compare_rules(args["topic"])
+                elif name == "convert_unit":
+                    yield ("log", f"换算：{args.get('value')} {args.get('from_unit')} → {args.get('to_unit')}")
+                    result = convert_unit(args["value"], args["from_unit"], args["to_unit"])
+                else:
+                    result = f"未知工具：{name}"
+
+                # 从工具返回文本里提取来源（两种工具的输出格式都抓）
+                found = re.findall(r"【来源：(.+?)】", result)
+                found += re.findall(r"===== (.+?) 的相关条文 =====", result)
+                for s in found:
+                    if s not in sources:
+                        sources.append(s)
+
+                messages.append({"role": "tool", "tool_call_id": t["id"], "content": result})
+
+            if step >= MAX_STEPS:
+                yield ("log", "（达到步数上限，停止）")
+                break
+        else:
+            # 没有工具调用 = 这一轮就是最终回答（已经流完了）
             break
+
+    yield ("sources", sources)
